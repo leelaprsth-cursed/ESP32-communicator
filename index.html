@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 Emergency Communication System</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-void: #020408;
+    --bg-deep: #040d16;
+    --bg-panel: rgba(4, 18, 30, 0.85);
+    --bg-card: rgba(6, 24, 40, 0.7);
+    --neon-green: #00ff88;
+    --neon-cyan: #00d4ff;
+    --neon-red: #ff2244;
+    --neon-orange: #ff6600;
+    --neon-yellow: #ffcc00;
+    --blue-primary: #0066ff;
+    --blue-light: #4499ff;
+    --glass-border: rgba(0, 212, 255, 0.15);
+    --glass-border-hot: rgba(0, 255, 136, 0.4);
+    --text-primary: #e0f0ff;
+    --text-secondary: rgba(180, 210, 240, 0.6);
+    --text-mono: #00d4ff;
+    --shadow-glow: 0 0 30px rgba(0, 212, 255, 0.12);
+    --shadow-green: 0 0 20px rgba(0, 255, 136, 0.3);
+    --shadow-red: 0 0 20px rgba(255, 34, 68, 0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg-void);
+    color: var(--text-primary);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+    animation: gridPulse 8s ease-in-out infinite;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 20%, rgba(0, 102, 255, 0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 60% at 80% 80%, rgba(0, 255, 136, 0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @keyframes gridPulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  /* ============ HEADER ============ */
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 0 24px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--glass-border);
+    background: rgba(2, 8, 16, 0.9);
+    backdrop-filter: blur(20px);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 38px;
+    height: 38px;
+    position: relative;
+  }
+
+  .logo-icon svg { width: 100%; height: 100%; }
+
+  .brand-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+  }
+
+  .brand-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+
+  .header-center {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .live-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--neon-green);
+    box-shadow: 0 0 8px var(--neon-green);
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--neon-green); }
+    50% { opacity: 0.4; box-shadow: 0 0 3px var(--neon-green); }
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .sys-time {
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    color: var(--neon-cyan);
+    letter-spacing: 1px;
+  }
+
+  .btn-demo {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 8px 18px;
+    background: transparent;
+    border: 1px solid var(--neon-green);
+    color: var(--neon-green);
+    cursor: pointer;
+    border-radius: 3px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-demo::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--neon-green);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .btn-demo:hover::before { opacity: 0.1; }
+  .btn-demo:hover { box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
+
+  /* ============ MAIN LAYOUT ============ */
+  .main-container {
+    position: relative;
+    z-index: 1;
+    padding: 20px 24px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  /* ============ TOP STATUS BAR ============ */
+  .status-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+    opacity: 0.5;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .stat-info { flex: 1; }
+
+  .stat-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .stat-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* ============ MAIN GRID ============ */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    grid-template-rows: auto auto;
+    gap: 16px;
+  }
+
+  /* ============ NODE VISUALIZATION ============ */
+  .node-viz-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .panel-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: var(--neon-cyan);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: var(--neon-cyan);
+    border-radius: 2px;
+    box-shadow: 0 0 8px var(--neon-cyan);
+  }
+
+  .panel-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid;
+  }
+
+  /* ============ NODE CANVAS ============ */
+  .node-canvas {
+    position: relative;
+    height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+
+  /* SVG canvas overlay */
+  #nodeCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .node-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .node-device {
+    width: 90px;
+    height: 90px;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .node-body {
+    width: 80px;
+    height: 80px;
+    border-radius: 12px;
+    background: rgba(4, 18, 34, 0.9);
+    border: 2px solid;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    position: relative;
+    transition: all 0.3s;
+  }
+
+  .node-body::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px;
+    border: 1px solid;
+    opacity: 0.2;
+  }
+
+  .node-sender .node-body {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 25px rgba(0, 212, 255, 0.2), inset 0 0 20px rgba(0, 212, 255, 0.05);
+  }
+
+  .node-sender .node-body::after { border-color: var(--neon-cyan); }
+
+  .node-receiver .node-body {
+    border-color: var(--neon-green);
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.2), inset 0 0 20px rgba(0, 255, 136, 0.05);
+  }
+
+  .node-receiver .node-body::after { border-color: var(--neon-green); }
+
+  .node-icon { font-size: 26px; }
+  .node-id {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+
+  .node-sender .node-id { color: var(--neon-cyan); }
+  .node-receiver .node-id { color: var(--neon-green); }
+
+  .node-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+
+  .node-sender .node-label { color: var(--neon-cyan); }
+  .node-receiver .node-label { color: var(--neon-green); }
+
+  .node-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    position: absolute;
+    top: -3px;
+    right: -3px;
+  }
+
+  .status-online {
+    background: var(--neon-green);
+    box-shadow: 0 0 8px var(--neon-green);
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  .status-offline {
+    background: #444;
+    box-shadow: none;
+  }
+
+  /* Transmission state effects */
+  .node-device.transmitting .node-body {
+    animation: transmitPulse 0.5s ease-in-out infinite alternate;
+  }
+
+  .node-device.receiving .node-body {
+    animation: receivePulse 0.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes transmitPulse {
+    from { box-shadow: 0 0 25px rgba(0, 212, 255, 0.2), inset 0 0 20px rgba(0, 212, 255, 0.05); }
+    to { box-shadow: 0 0 50px rgba(0, 212, 255, 0.7), inset 0 0 30px rgba(0, 212, 255, 0.15); }
+  }
+
+  @keyframes receivePulse {
+    from { box-shadow: 0 0 25px rgba(0, 255, 136, 0.2), inset 0 0 20px rgba(0, 255, 136, 0.05); }
+    to { box-shadow: 0 0 60px rgba(0, 255, 136, 0.9), inset 0 0 40px rgba(0, 255, 136, 0.2); border-color: #fff; }
+  }
+
+  /* Central status display */
+  .central-status {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .tx-state-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+  }
+
+  .tx-state-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-top: 4px;
+  }
+
+  /* ============ EMERGENCY BUTTON ============ */
+  .emergency-section {
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .btn-emergency {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, rgba(255, 40, 70, 0.3), rgba(180, 0, 30, 0.6));
+    border: 2px solid var(--neon-red);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.2s;
+    box-shadow: 0 0 30px rgba(255, 34, 68, 0.2), inset 0 0 20px rgba(255, 34, 68, 0.1);
+    flex-shrink: 0;
+  }
+
+  .btn-emergency::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 34, 68, 0.3);
+    animation: emergencyRing 2s ease-in-out infinite;
+  }
+
+  .btn-emergency::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 34, 68, 0.15);
+    animation: emergencyRing 2s ease-in-out infinite 0.5s;
+  }
+
+  @keyframes emergencyRing {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.05); opacity: 1; }
+  }
+
+  .btn-emergency:hover {
+    box-shadow: 0 0 60px rgba(255, 34, 68, 0.6), inset 0 0 30px rgba(255, 34, 68, 0.2);
+    transform: scale(1.05);
+  }
+
+  .btn-emergency:active { transform: scale(0.97); }
+
+  .btn-emergency-icon { font-size: 28px; }
+  .btn-emergency-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--neon-red);
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .emergency-info { flex: 1; }
+
+  .emergency-info h3 {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+
+  .emergency-info p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+
+  .signal-type-btns {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .sig-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 5px 12px;
+    border-radius: 3px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+  }
+
+  .sig-btn.active, .sig-btn:hover { opacity: 1; }
+  .sig-btn { opacity: 0.6; }
+
+  .sig-btn-red { color: var(--neon-red); border-color: var(--neon-red); }
+  .sig-btn-red.active, .sig-btn-red:hover { background: rgba(255, 34, 68, 0.1); box-shadow: 0 0 10px rgba(255, 34, 68, 0.3); opacity: 1; }
+
+  .sig-btn-orange { color: var(--neon-orange); border-color: var(--neon-orange); }
+  .sig-btn-orange.active, .sig-btn-orange:hover { background: rgba(255, 102, 0, 0.1); opacity: 1; }
+
+  .sig-btn-yellow { color: var(--neon-yellow); border-color: var(--neon-yellow); }
+  .sig-btn-yellow.active, .sig-btn-yellow:hover { background: rgba(255, 204, 0, 0.1); opacity: 1; }
+
+  .sig-btn-cyan { color: var(--neon-cyan); border-color: var(--neon-cyan); }
+  .sig-btn-cyan.active, .sig-btn-cyan:hover { background: rgba(0, 212, 255, 0.1); opacity: 1; }
+
+  /* ============ RIGHT PANEL ============ */
+  .right-panel {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Node status cards */
+  .node-status-card {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 16px;
+    backdrop-filter: blur(10px);
+  }
+
+  .node-stat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.06);
+  }
+
+  .node-stat-row:last-child { border-bottom: none; }
+
+  .nsr-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nsr-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .nsr-name {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+  }
+
+  .nsr-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* ============ CHART ============ */
+  .chart-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 16px;
+    backdrop-filter: blur(10px);
+    flex: 1;
+    min-height: 180px;
+  }
+
+  #alertChart {
+    width: 100%;
+    height: 120px;
+    position: relative;
+  }
+
+  /* ============ BOTTOM GRID ============ */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 0;
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  /* ============ MESSAGE LOG ============ */
+  .log-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 16px;
+    backdrop-filter: blur(10px);
+  }
+
+  .log-scroll {
+    max-height: 240px;
+    overflow-y: auto;
+    margin-top: 12px;
+    padding-right: 4px;
+  }
+
+  .log-scroll::-webkit-scrollbar { width: 3px; }
+  .log-scroll::-webkit-scrollbar-track { background: transparent; }
+  .log-scroll::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.3); border-radius: 2px; }
+
+  .log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.05);
+    animation: logSlide 0.4s ease-out;
+  }
+
+  @keyframes logSlide {
+    from { transform: translateY(-12px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .log-entry:first-child { padding-top: 0; }
+
+  .log-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .log-content { flex: 1; min-width: 0; }
+
+  .log-msg {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .log-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+
+  .log-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    border: 1px solid;
+    white-space: nowrap;
+    align-self: center;
+  }
+
+  /* ============ MESSAGE TABLE ============ */
+  .table-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 16px;
+    backdrop-filter: blur(10px);
+  }
+
+  .msg-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+
+  .msg-table th {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    padding: 0 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .msg-table td {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 9px 8px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.04);
+    vertical-align: middle;
+  }
+
+  .msg-table tbody tr {
+    transition: background 0.2s;
+    animation: tableRow 0.4s ease-out;
+  }
+
+  @keyframes tableRow {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .msg-table tbody tr:hover { background: rgba(0, 212, 255, 0.03); }
+
+  .td-msg {
+    color: var(--neon-red);
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+
+  .td-time { color: var(--text-secondary); font-size: 10px; }
+  .td-travel { color: var(--neon-yellow); }
+
+  .table-scroll-wrap {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .table-scroll-wrap::-webkit-scrollbar { width: 3px; }
+  .table-scroll-wrap::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.3); border-radius: 2px; }
+
+  /* ============ NOTIFICATION ============ */
+  #notification {
+    position: fixed;
+    top: 80px;
+    right: 24px;
+    z-index: 1000;
+    min-width: 320px;
+    padding: 16px 20px;
+    background: rgba(4, 12, 22, 0.95);
+    border-radius: 8px;
+    border-left: 3px solid;
+    backdrop-filter: blur(20px);
+    transform: translateX(400px);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+
+  #notification.show { transform: translateX(0); }
+
+  .notif-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .notif-icon { font-size: 18px; }
+  .notif-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .notif-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-left: auto;
+  }
+
+  .notif-body {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .notif-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: currentColor;
+    border-radius: 0 0 0 8px;
+    animation: notifProgress 4s linear forwards;
+  }
+
+  @keyframes notifProgress {
+    from { width: 100%; }
+    to { width: 0%; }
+  }
+
+  /* ============ COLOR UTILITIES ============ */
+  .c-green { color: var(--neon-green); }
+  .c-cyan { color: var(--neon-cyan); }
+  .c-red { color: var(--neon-red); }
+  .c-orange { color: var(--neon-orange); }
+  .c-yellow { color: var(--neon-yellow); }
+  .c-gray { color: #555; }
+
+  .bg-green { background: rgba(0, 255, 136, 0.1); }
+  .bg-cyan { background: rgba(0, 212, 255, 0.1); }
+  .bg-red { background: rgba(255, 34, 68, 0.15); }
+  .bg-orange { background: rgba(255, 102, 0, 0.12); }
+  .bg-yellow { background: rgba(255, 204, 0, 0.1); }
+
+  .border-green { border-color: var(--neon-green); }
+  .border-cyan { border-color: var(--neon-cyan); }
+  .border-red { border-color: var(--neon-red); }
+  .border-orange { border-color: var(--neon-orange); }
+  .border-yellow { border-color: var(--neon-yellow); }
+
+  /* Health bar */
+  .health-bar-wrap {
+    margin-top: 4px;
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .health-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-green));
+    transition: width 0.8s ease;
+    box-shadow: 0 0 8px var(--neon-green);
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 1100px) {
+    .main-grid {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+    }
+    .right-panel {
+      grid-column: 1;
+      grid-row: 3;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .bottom-grid {
+      grid-column: 1;
+      grid-row: 2;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .status-bar { grid-template-columns: repeat(2, 1fr); }
+    .bottom-grid { grid-template-columns: 1fr; }
+    .right-panel { grid-template-columns: 1fr; }
+    header { padding: 0 14px; }
+    .main-container { padding: 14px; }
+    .brand-name { font-size: 12px; }
+    .header-center { display: none; }
+    .emergency-section { flex-direction: column; text-align: center; }
+    .signal-type-btns { justify-content: center; }
+  }
+
+  @media (max-width: 480px) {
+    .status-bar { grid-template-columns: 1fr; }
+  }
+
+  /* Scan line effect */
+  .scanline {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.4), transparent);
+    animation: scanDown 6s linear infinite;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  @keyframes scanDown {
+    from { top: 0; opacity: 0.5; }
+    to { top: 100vh; opacity: 0.1; }
+  }
+
+  /* Particle canvas */
+  #particleCanvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* Demo mode badge */
+  .demo-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    padding: 3px 8px;
+    background: rgba(255, 204, 0, 0.1);
+    border: 1px solid rgba(255, 204, 0, 0.4);
+    color: var(--neon-yellow);
+    border-radius: 2px;
+    letter-spacing: 2px;
+    animation: demoBlink 2s ease-in-out infinite;
+  }
+
+  @keyframes demoBlink {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+
+  /* Sparkle on receive */
+  .sparkle {
+    position: absolute;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* Signal strength bars */
+  .signal-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+  }
+
+  .signal-bar {
+    width: 4px;
+    border-radius: 1px;
+    transition: all 0.3s;
+  }
+
+  /* Footer */
+  footer {
+    position: relative;
+    z-index: 1;
+    padding: 12px 24px;
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 20px;
+  }
+
+  footer span {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Scanline -->
+<div class="scanline"></div>
+
+<!-- Particle canvas for ambient particles -->
+<canvas id="particleCanvas"></canvas>
+
+<!-- ============ NOTIFICATION ============ -->
+<div id="notification">
+  <div class="notif-header">
+    <span class="notif-icon">🚨</span>
+    <span class="notif-title" id="notifTitle">EMERGENCY ALERT</span>
+    <span class="notif-time" id="notifTime"></span>
+  </div>
+  <div class="notif-body" id="notifBody">Emergency signal transmitted from Node A</div>
+  <div class="notif-progress"></div>
+</div>
+
+<!-- ============ HEADER ============ -->
+<header>
+  <div class="header-left">
+    <div class="logo-icon">
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="20" r="18" stroke="#00d4ff" stroke-width="1" stroke-dasharray="4 2"/>
+        <circle cx="20" cy="20" r="12" stroke="#00ff88" stroke-width="1" opacity="0.5"/>
+        <circle cx="20" cy="20" r="4" fill="#00d4ff"/>
+        <line x1="20" y1="2" x2="20" y2="8" stroke="#00d4ff" stroke-width="1.5"/>
+        <line x1="20" y1="32" x2="20" y2="38" stroke="#00d4ff" stroke-width="1.5"/>
+        <line x1="2" y1="20" x2="8" y2="20" stroke="#00d4ff" stroke-width="1.5"/>
+        <line x1="32" y1="20" x2="38" y2="20" stroke="#00d4ff" stroke-width="1.5"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">EMERGOLINK</div>
+      <div class="brand-sub">ESP32 IoT Emergency System</div>
+    </div>
+  </div>
+
+  <div class="header-center">
+    <div class="live-indicator"></div>
+    <span>LIVE MONITORING</span>
+    <span style="margin: 0 8px; opacity:0.3;">|</span>
+    <span>NODE MESH v2.4.1</span>
+    <span style="margin: 0 8px; opacity:0.3;">|</span>
+    <span id="uptimeDisplay">UPTIME: 00:00:00</span>
+  </div>
+
+  <div class="header-right">
+    <div class="demo-badge">DEMO MODE</div>
+    <div class="sys-time" id="sysTime">--:--:--</div>
+    <button class="btn-demo" id="autoSimBtn" onclick="toggleAutoSim()">AUTO SIM: OFF</button>
+  </div>
+</header>
+
+<!-- ============ MAIN ============ -->
+<div class="main-container">
+
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <div class="stat-card">
+      <div class="stat-icon bg-red" style="border-radius:6px">🚨</div>
+      <div class="stat-info">
+        <div class="stat-label">Total Alerts</div>
+        <div class="stat-value c-red" id="totalAlerts">0</div>
+        <div class="stat-sub">ALL TIME</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon bg-green">⚡</div>
+      <div class="stat-info">
+        <div class="stat-label">Avg Travel Time</div>
+        <div class="stat-value c-green" id="avgTravel">—</div>
+        <div class="stat-sub">MILLISECONDS</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon bg-cyan">📡</div>
+      <div class="stat-info">
+        <div class="stat-label">System Health</div>
+        <div class="stat-value c-cyan" id="sysHealth">98%</div>
+        <div class="health-bar-wrap" style="margin-top:6px">
+          <div class="health-bar-fill" id="healthBar" style="width:98%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon bg-orange">🔄</div>
+      <div class="stat-info">
+        <div class="stat-label">Current State</div>
+        <div class="stat-value" id="currentState" style="font-size:13px; color: var(--neon-cyan);">IDLE</div>
+        <div class="stat-sub" id="stateDetail">AWAITING SIGNAL</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- NODE VISUALIZATION PANEL -->
+    <div class="node-viz-panel" style="grid-column:1; grid-row:1;">
+      <div class="panel-header">
+        <div class="panel-title">NODE TRANSMISSION MAP</div>
+        <span class="panel-badge border-cyan c-cyan" style="background:rgba(0,212,255,0.05)">IEEE 802.11 / ESP-NOW</span>
+      </div>
+
+      <div class="node-canvas">
+        <!-- SVG for animated connection line -->
+        <svg id="nodeCanvas" viewBox="0 0 800 220" preserveAspectRatio="xMidYMid meet">
+          <!-- Connection line segments -->
+          <defs>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.8"/>
+              <stop offset="50%" stop-color="#00ff88" stop-opacity="0.6"/>
+              <stop offset="100%" stop-color="#00ff88" stop-opacity="0.8"/>
+            </linearGradient>
+            <marker id="arrowRight" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#00d4ff" opacity="0.8"/>
+            </marker>
+          </defs>
+          <!-- Static dashed connection -->
+          <line id="connLine" x1="180" y1="110" x2="620" y2="110"
+            stroke="rgba(0,212,255,0.15)" stroke-width="1.5" stroke-dasharray="6 4"/>
+          <!-- Animated data line -->
+          <line id="dataLine" x1="180" y1="110" x2="620" y2="110"
+            stroke="url(#lineGrad)" stroke-width="2" opacity="0"
+            marker-end="url(#arrowRight)" filter="url(#glow)"/>
+          <!-- Packet dot -->
+          <circle id="packetDot" cx="180" cy="110" r="6" fill="#00d4ff"
+            filter="url(#glow)" opacity="0"/>
+          <!-- Burst rings on receive -->
+          <circle id="receiveRing1" cx="620" cy="110" r="20" fill="none"
+            stroke="#00ff88" stroke-width="2" opacity="0"/>
+          <circle id="receiveRing2" cx="620" cy="110" r="35" fill="none"
+            stroke="#00ff88" stroke-width="1" opacity="0"/>
+          <!-- Signal wave arcs from sender -->
+          <path id="wave1" d="M 155 85 Q 140 110 155 135" fill="none"
+            stroke="#00d4ff" stroke-width="1.5" opacity="0"/>
+          <path id="wave2" d="M 143 75 Q 122 110 143 145" fill="none"
+            stroke="#00d4ff" stroke-width="1" opacity="0"/>
+        </svg>
+
+        <!-- Sender Node -->
+        <div class="node-wrapper" id="senderNode" style="position:absolute; left: 8%;">
+          <div class="node-device" id="senderDevice">
+            <div class="node-body node-sender">
+              <span class="node-status-dot status-online" id="senderDot"></span>
+              <span class="node-icon">📟</span>
+              <span class="node-id">NODE-A</span>
+            </div>
+          </div>
+          <span class="node-label">SENDER</span>
+          <div style="display:flex; gap:12px; margin-top:4px;">
+            <div style="text-align:center;">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);">RSSI</div>
+              <div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--neon-cyan);" id="senderRSSI">-42dBm</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);">TX</div>
+              <div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--neon-green);" id="senderTX">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Central status -->
+        <div class="central-status">
+          <div class="tx-state-label">CHANNEL</div>
+          <div class="tx-state-value c-cyan">CH.6</div>
+          <div style="margin-top:8px; font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-secondary);">2.4 GHz BAND</div>
+        </div>
+
+        <!-- Receiver Node -->
+        <div class="node-wrapper" id="receiverNode" style="position:absolute; right: 8%;">
+          <div class="node-device" id="receiverDevice">
+            <div class="node-body node-receiver">
+              <span class="node-status-dot status-online" id="receiverDot"></span>
+              <span class="node-icon">📡</span>
+              <span class="node-id">NODE-B</span>
+            </div>
+          </div>
+          <span class="node-label">RECEIVER</span>
+          <div style="display:flex; gap:12px; margin-top:4px;">
+            <div style="text-align:center;">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);">RSSI</div>
+              <div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--neon-green);" id="receiverRSSI">-38dBm</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);">RX</div>
+              <div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--neon-green);" id="receiverRX">0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EMERGENCY BUTTON SECTION -->
+      <div class="emergency-section">
+        <button class="btn-emergency" id="emergencyBtn" onclick="sendEmergency()">
+          <span class="btn-emergency-icon">⚠️</span>
+          <span class="btn-emergency-label">SEND<br>ALERT</span>
+        </button>
+        <div class="emergency-info">
+          <h3>EMERGENCY SIGNAL CONTROL</h3>
+          <p>Select alert type and press to transmit an emergency signal from Node A to Node B via ESP-NOW protocol.</p>
+          <div class="signal-type-btns">
+            <button class="sig-btn sig-btn-red active" onclick="setMsgType('EMERGENCY ALERT', this)">🔴 EMERGENCY</button>
+            <button class="sig-btn sig-btn-orange" onclick="setMsgType('FIRE ALERT', this)">🔥 FIRE</button>
+            <button class="sig-btn sig-btn-yellow" onclick="setMsgType('HAZARD WARNING', this)">⚡ HAZARD</button>
+            <button class="sig-btn sig-btn-cyan" onclick="setMsgType('STATUS CHECK', this)">📡 PING</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM GRID -->
+    <div class="bottom-grid" style="grid-column:1; grid-row:2;">
+
+      <!-- EVENT LOG -->
+      <div class="log-panel">
+        <div class="panel-header">
+          <div class="panel-title">EVENT TIMELINE</div>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-secondary);" id="logCount">0 EVENTS</span>
+        </div>
+        <div class="log-scroll" id="logScroll">
+          <div style="text-align:center; padding:20px; font-family:'Share Tech Mono',monospace; font-size:11px; color:rgba(0,212,255,0.3);">
+            AWAITING EVENTS...
+          </div>
+        </div>
+      </div>
+
+      <!-- MESSAGE TABLE -->
+      <div class="table-panel">
+        <div class="panel-header">
+          <div class="panel-title">MESSAGE RECORDS</div>
+          <button onclick="clearMessages()" style="font-family:'Share Tech Mono',monospace;font-size:9px;background:transparent;border:1px solid rgba(255,34,68,0.4);color:rgba(255,34,68,0.6);padding:3px 10px;cursor:pointer;border-radius:2px;letter-spacing:1px;">CLEAR</button>
+        </div>
+        <div class="table-scroll-wrap">
+          <table class="msg-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>MESSAGE</th>
+                <th>SENT</th>
+                <th>TRAVEL</th>
+                <th>STATUS</th>
+              </tr>
+            </thead>
+            <tbody id="msgTableBody">
+              <tr><td colspan="5" style="text-align:center;color:rgba(0,212,255,0.3);font-size:10px;padding:20px 0;">NO RECORDS</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+
+      <!-- Node Status Cards -->
+      <div class="node-status-card">
+        <div class="panel-title" style="margin-bottom:12px;">NODE STATUS</div>
+        <div class="node-stat-row">
+          <div class="nsr-left">
+            <div class="nsr-dot" style="background:var(--neon-cyan); box-shadow:0 0 6px var(--neon-cyan); animation:blink 2s infinite;"></div>
+            <span class="nsr-name">NODE-A (SENDER)</span>
+          </div>
+          <span class="nsr-value c-green" id="senderStatus">ONLINE</span>
+        </div>
+        <div class="node-stat-row">
+          <div class="nsr-left">
+            <div class="nsr-dot" style="background:var(--neon-green); box-shadow:0 0 6px var(--neon-green); animation:blink 2.5s infinite;"></div>
+            <span class="nsr-name">NODE-B (RECEIVER)</span>
+          </div>
+          <span class="nsr-value c-green" id="receiverStatus">ONLINE</span>
+        </div>
+        <div class="node-stat-row">
+          <div class="nsr-left">
+            <div class="nsr-dot" style="background:var(--neon-orange); box-shadow:0 0 6px var(--neon-orange);"></div>
+            <span class="nsr-name">MESH NETWORK</span>
+          </div>
+          <span class="nsr-value c-cyan">ACTIVE</span>
+        </div>
+        <div class="node-stat-row">
+          <div class="nsr-left">
+            <div class="nsr-dot" style="background:var(--neon-yellow); box-shadow:0 0 6px var(--neon-yellow);"></div>
+            <span class="nsr-name">API BACKEND</span>
+          </div>
+          <span class="nsr-value" style="color:var(--neon-yellow);">DEMO</span>
+        </div>
+        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--glass-border);">
+          <div style="font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-secondary); margin-bottom:8px; letter-spacing:2px;">SIGNAL QUALITY</div>
+          <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:8px;">
+            <div style="flex:1;">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--neon-cyan);margin-bottom:4px;">NODE-A</div>
+              <div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
+                <div style="height:100%;width:85%;background:var(--neon-cyan);border-radius:2px;box-shadow:0 0 6px var(--neon-cyan);"></div>
+              </div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);margin-top:2px;">85%</div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--neon-green);margin-bottom:4px;">NODE-B</div>
+              <div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
+                <div style="height:100%;width:91%;background:var(--neon-green);border-radius:2px;box-shadow:0 0 6px var(--neon-green);"></div>
+              </div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);margin-top:2px;">91%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alert Chart -->
+      <div class="chart-panel">
+        <div class="panel-title" style="margin-bottom:12px;">ALERT FREQUENCY</div>
+        <canvas id="alertChart"></canvas>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;">
+          <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-secondary);">LAST 10 INTERVALS</span>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--neon-cyan);" id="chartTotal">0 TOTAL</span>
+        </div>
+      </div>
+
+      <!-- Last Message Card -->
+      <div class="node-status-card">
+        <div class="panel-title" style="margin-bottom:12px;">LAST TRANSMISSION</div>
+        <div style="background:rgba(0,0,0,0.3);border-radius:6px;border:1px solid rgba(0,212,255,0.1);padding:12px;" id="lastMsgCard">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-secondary);text-align:center;padding:10px 0;">NO TRANSMISSION YET</div>
+        </div>
+        <div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div style="background:rgba(0,0,0,0.2);border-radius:4px;border:1px solid rgba(0,212,255,0.08);padding:10px;">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);margin-bottom:4px;">SENT AT</div>
+            <div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--neon-cyan);" id="lastSentTime">--:--:--</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.2);border-radius:4px;border:1px solid rgba(0,212,255,0.08);padding:10px;">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-secondary);margin-bottom:4px;">RECV AT</div>
+            <div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--neon-green);" id="lastRecvTime">--:--:--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <span>© 2026 EMERGOLINK · ESP32 IoT EMERGENCY MESH · v2.4.1</span>
+  <span id="footerMsg">SYSTEM NOMINAL · ALL NODES REACHABLE</span>
+  <span>API: ws://esp32.local:80/ws · HTTP: /api/messages</span>
+</footer>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  totalAlerts: 0,
+  messages: [],
+  logEntries: [],
+  isTransmitting: false,
+  selectedMsg: 'EMERGENCY ALERT',
+  autoSim: false,
+  autoSimInterval: null,
+  chartData: new Array(10).fill(0),
+  startTime: Date.now(),
+  txCount: 0,
+  rxCount: 0,
+};
+
+// ============================================================
+// CLOCK & UPTIME
+// ============================================================
+function updateClock() {
+  const now = new Date();
+  document.getElementById('sysTime').textContent =
+    now.toTimeString().slice(0, 8);
+
+  const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+  const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+  const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+  const s = String(elapsed % 60).padStart(2, '0');
+  document.getElementById('uptimeDisplay').textContent = `UPTIME: ${h}:${m}:${s}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ============================================================
+// PARTICLE SYSTEM
+// ============================================================
+const pCanvas = document.getElementById('particleCanvas');
+const pCtx = pCanvas.getContext('2d');
+let particles = [];
+
+function resizeParticleCanvas() {
+  pCanvas.width = window.innerWidth;
+  pCanvas.height = window.innerHeight;
+}
+
+function initParticles() {
+  particles = [];
+  for (let i = 0; i < 40; i++) {
+    particles.push({
+      x: Math.random() * pCanvas.width,
+      y: Math.random() * pCanvas.height,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 1.5 + 0.5,
+      alpha: Math.random() * 0.3 + 0.1,
+      color: Math.random() > 0.5 ? '#00d4ff' : '#00ff88'
+    });
+  }
+}
+
+function animateParticles() {
+  pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x < 0) p.x = pCanvas.width;
+    if (p.x > pCanvas.width) p.x = 0;
+    if (p.y < 0) p.y = pCanvas.height;
+    if (p.y > pCanvas.height) p.y = 0;
+    pCtx.beginPath();
+    pCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    pCtx.fillStyle = p.color;
+    pCtx.globalAlpha = p.alpha;
+    pCtx.fill();
+  });
+  pCtx.globalAlpha = 1;
+  requestAnimationFrame(animateParticles);
+}
+
+window.addEventListener('resize', () => { resizeParticleCanvas(); initParticles(); });
+resizeParticleCanvas();
+initParticles();
+animateParticles();
+
+// ============================================================
+// CHART (bare canvas, no library)
+// ============================================================
+function drawChart() {
+  const canvas = document.getElementById('alertChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth;
+  const H = 120;
+  canvas.width = W;
+  canvas.height = H;
+
+  const max = Math.max(...state.chartData, 1);
+  const barW = W / state.chartData.length;
+  const padBottom = 20;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid lines
+  for (let i = 0; i <= 4; i++) {
+    const y = padBottom + (H - padBottom) * (1 - i / 4);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.strokeStyle = 'rgba(0,212,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Bars
+  state.chartData.forEach((val, i) => {
+    const barH = ((H - padBottom) * val) / max;
+    const x = i * barW;
+    const y = H - padBottom - barH;
+
+    // Gradient bar
+    const grad = ctx.createLinearGradient(0, y, 0, H - padBottom);
+    grad.addColorStop(0, val > 2 ? 'rgba(255,34,68,0.9)' : 'rgba(0,212,255,0.8)');
+    grad.addColorStop(1, val > 2 ? 'rgba(255,34,68,0.2)' : 'rgba(0,212,255,0.1)');
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(x + 3, y, barW - 6, barH);
+
+    // Glow top
+    ctx.shadowColor = val > 2 ? '#ff2244' : '#00d4ff';
+    ctx.shadowBlur = 6;
+    ctx.fillRect(x + 3, y, barW - 6, 2);
+    ctx.shadowBlur = 0;
+
+    // Label
+    ctx.fillStyle = 'rgba(180,210,240,0.4)';
+    ctx.font = '9px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(i === 9 ? 'NOW' : String(9 - i), x + barW / 2, H - 4);
+  });
+
+  document.getElementById('chartTotal').textContent = `${state.totalAlerts} TOTAL`;
+}
+
+// ============================================================
+// MSG TYPE SELECTOR
+// ============================================================
+let currentMsgType = 'EMERGENCY ALERT';
+function setMsgType(type, btn) {
+  currentMsgType = type;
+  document.querySelectorAll('.sig-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ============================================================
+// NODE ANIMATION
+// ============================================================
+function animateTransmission(onComplete) {
+  const dataLine = document.getElementById('dataLine');
+  const packetDot = document.getElementById('packetDot');
+  const wave1 = document.getElementById('wave1');
+  const wave2 = document.getElementById('wave2');
+  const receiveRing1 = document.getElementById('receiveRing1');
+  const receiveRing2 = document.getElementById('receiveRing2');
+
+  // Show waves
+  wave1.style.opacity = '0.8';
+  wave2.style.opacity = '0.5';
+
+  // Show data line
+  dataLine.style.opacity = '1';
+
+  // Animate packet
+  packetDot.style.opacity = '1';
+  let progress = 0;
+  const startX = 180, endX = 620;
+  const y = 110;
+
+  function step() {
+    progress += 0.015;
+    if (progress >= 1) {
+      progress = 1;
+      // Arrival burst
+      receiveRing1.style.opacity = '1';
+      receiveRing2.style.opacity = '0.6';
+      setTimeout(() => {
+        receiveRing1.style.opacity = '0';
+        receiveRing2.style.opacity = '0';
+        dataLine.style.opacity = '0';
+        packetDot.style.opacity = '0';
+        wave1.style.opacity = '0';
+        wave2.style.opacity = '0';
+        if (onComplete) onComplete();
+      }, 500);
+      return;
+    }
+    // Easing
+    const ease = progress < 0.5 ?
+      4 * progress * progress * progress :
+      1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+    const cx = startX + (endX - startX) * ease;
+    const cy = y + Math.sin(progress * Math.PI) * -20;
+    packetDot.setAttribute('cx', cx);
+    packetDot.setAttribute('cy', cy);
+
+    // Animate rings
+    receiveRing1.setAttribute('r', 20 + progress * 10);
+    receiveRing2.setAttribute('r', 35 + progress * 10);
+
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ============================================================
+// SEND EMERGENCY
+// ============================================================
+async function sendEmergency() {
+  if (state.isTransmitting) return;
+  state.isTransmitting = true;
+
+  const msg = currentMsgType;
+  const sentTime = new Date();
+  const sentTimeStr = sentTime.toTimeString().slice(0, 8);
+
+  // Update state display
+  updateStateDisplay('SENDING', 'TRANSMITTING...', '#ff6600');
+
+  // Animate sender
+  document.getElementById('senderDevice').classList.add('transmitting');
+
+  // Add log: sending
+  addLog('📤', 'SENT', `Signal transmitted: ${msg}`, sentTimeStr, 'c-cyan', 'border-cyan bg-cyan');
+
+  // Animate packet travel
+  animateTransmission(() => {
+    const travelTime = Math.floor(Math.random() * 800 + 200);
+    const receivedTime = new Date(sentTime.getTime() + travelTime);
+    const receivedTimeStr = receivedTime.toTimeString().slice(0, 8);
+
+    // Animate receiver
+    document.getElementById('senderDevice').classList.remove('transmitting');
+    document.getElementById('receiverDevice').classList.add('receiving');
+
+    updateStateDisplay('DELIVERED', 'MSG RECEIVED', '#00ff88');
+
+    addLog('📥', 'RECV', `Signal received: ${msg}`, receivedTimeStr, 'c-green', 'border-green bg-green');
+    addLog('✅', 'OK', `Delivery confirmed in ${travelTime}ms`, receivedTimeStr, 'c-yellow', 'border-yellow bg-yellow');
+
+    // Record message
+    state.totalAlerts++;
+    state.txCount++;
+    state.rxCount++;
+    state.messages.unshift({
+      id: state.totalAlerts,
+      message: msg,
+      sentTime: sentTimeStr,
+      receivedTime: receivedTimeStr,
+      travelTime,
+      status: 'DELIVERED'
+    });
+
+    // Update stats
+    document.getElementById('totalAlerts').textContent = state.totalAlerts;
+    document.getElementById('senderTX').textContent = state.txCount;
+    document.getElementById('receiverRX').textContent = state.rxCount;
+
+    // Avg travel
+    const avgT = Math.round(
+      state.messages.reduce((s, m) => s + m.travelTime, 0) / state.messages.length
+    );
+    document.getElementById('avgTravel').textContent = `${avgT}ms`;
+
+    // Update last msg card
+    updateLastMsg(msg, sentTimeStr, receivedTimeStr, travelTime);
+
+    // Update table
+    updateTable();
+
+    // Update chart
+    state.chartData.shift();
+    state.chartData.push(state.chartData[8] + 1 > 5 ? 1 : state.chartData[8] + 1);
+    drawChart();
+
+    // Show notification
+    showNotification(msg, sentTimeStr, travelTime);
+
+    // RSSI jitter
+    document.getElementById('senderRSSI').textContent =
+      `-${Math.floor(Math.random() * 20 + 35)}dBm`;
+    document.getElementById('receiverRSSI').textContent =
+      `-${Math.floor(Math.random() * 15 + 30)}dBm`;
+
+    setTimeout(() => {
+      document.getElementById('receiverDevice').classList.remove('receiving');
+      updateStateDisplay('IDLE', 'AWAITING SIGNAL', '#00d4ff');
+      state.isTransmitting = false;
+    }, 1500);
+  });
+}
+
+// ============================================================
+// LOG
+// ============================================================
+let logCount = 0;
+function addLog(icon, badge, message, time, colorClass, badgeClasses) {
+  logCount++;
+  document.getElementById('logCount').textContent = `${logCount} EVENTS`;
+
+  const scroll = document.getElementById('logScroll');
+
+  // Clear placeholder
+  if (scroll.querySelector('[colspan]') || scroll.textContent.trim() === 'AWAITING EVENTS...') {
+    scroll.innerHTML = '';
+  }
+
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `
+    <div class="log-icon" style="background:rgba(0,0,0,0.3);border:1px solid rgba(0,212,255,0.15);">
+      ${icon}
+    </div>
+    <div class="log-content">
+      <div class="log-msg">${message}</div>
+      <div class="log-time">${time}</div>
+    </div>
+    <div class="log-badge ${badgeClasses}">${badge}</div>
+  `;
+
+  scroll.insertBefore(entry, scroll.firstChild);
+
+  // Limit logs
+  while (scroll.children.length > 30) {
+    scroll.removeChild(scroll.lastChild);
+  }
+}
+
+// ============================================================
+// TABLE
+// ============================================================
+function updateTable() {
+  const tbody = document.getElementById('msgTableBody');
+  tbody.innerHTML = '';
+
+  state.messages.slice(0, 10).forEach(m => {
+    const tr = document.createElement('tr');
+    const color = m.message.includes('EMERGENCY') ? 'var(--neon-red)' :
+                  m.message.includes('FIRE') ? 'var(--neon-orange)' :
+                  m.message.includes('HAZARD') ? 'var(--neon-yellow)' : 'var(--neon-cyan)';
+    tr.innerHTML = `
+      <td style="color:var(--text-secondary)">${m.id}</td>
+      <td class="td-msg" style="color:${color}">${m.message}</td>
+      <td class="td-time">${m.sentTime}</td>
+      <td class="td-travel">${m.travelTime}ms</td>
+      <td><span style="font-size:9px;padding:2px 6px;border:1px solid rgba(0,255,136,0.4);color:var(--neon-green);border-radius:2px;">${m.status}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function clearMessages() {
+  state.messages = [];
+  const tbody = document.getElementById('msgTableBody');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:rgba(0,212,255,0.3);font-size:10px;padding:20px 0;">NO RECORDS</td></tr>';
+}
+
+// ============================================================
+// STATE DISPLAY
+// ============================================================
+function updateStateDisplay(state_label, detail, color) {
+  const el = document.getElementById('currentState');
+  el.textContent = state_label;
+  el.style.color = color;
+  document.getElementById('stateDetail').textContent = detail;
+}
+
+// ============================================================
+// LAST MSG CARD
+// ============================================================
+function updateLastMsg(msg, sent, recv, travel) {
+  const card = document.getElementById('lastMsgCard');
+  const color = msg.includes('EMERGENCY') ? 'var(--neon-red)' :
+                msg.includes('FIRE') ? 'var(--neon-orange)' :
+                msg.includes('HAZARD') ? 'var(--neon-yellow)' : 'var(--neon-cyan)';
+  card.innerHTML = `
+    <div style="font-family:'Orbitron',monospace;font-size:13px;color:${color};font-weight:700;margin-bottom:6px;letter-spacing:2px;">${msg}</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-secondary);">Travel time: <span style="color:var(--neon-yellow)">${travel}ms</span></div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-secondary);margin-top:3px;">Node A → Node B via ESP-NOW</div>
+  `;
+  document.getElementById('lastSentTime').textContent = sent;
+  document.getElementById('lastRecvTime').textContent = recv;
+}
+
+// ============================================================
+// NOTIFICATION
+// ============================================================
+let notifTimeout = null;
+function showNotification(msg, time, travel) {
+  const notif = document.getElementById('notification');
+  const isEmergency = msg.includes('EMERGENCY') || msg.includes('FIRE');
+
+  notif.style.borderColor = isEmergency ? 'var(--neon-red)' : 'var(--neon-cyan)';
+  document.getElementById('notifTitle').textContent = msg;
+  document.getElementById('notifTitle').style.color = isEmergency ? 'var(--neon-red)' : 'var(--neon-cyan)';
+  document.getElementById('notifTime').textContent = time;
+  document.getElementById('notifBody').textContent = `Signal delivered in ${travel}ms · Node A → Node B`;
+  document.querySelector('.notif-progress').style.color = isEmergency ? 'var(--neon-red)' : 'var(--neon-cyan)';
+
+  notif.classList.add('show');
+
+  // Reset progress animation
+  const prog = document.querySelector('.notif-progress');
+  prog.style.animation = 'none';
+  prog.offsetHeight; // reflow
+  prog.style.animation = 'notifProgress 4s linear forwards';
+
+  clearTimeout(notifTimeout);
+  notifTimeout = setTimeout(() => notif.classList.remove('show'), 4200);
+
+  // Sound effect (Web Audio API)
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    }
+  } catch(e) {}
+}
+
+// ============================================================
+// AUTO SIM
+// ============================================================
+let autoSimOn = false;
+function toggleAutoSim() {
+  autoSimOn = !autoSimOn;
+  const btn = document.getElementById('autoSimBtn');
+  if (autoSimOn) {
+    btn.textContent = 'AUTO SIM: ON';
+    btn.style.borderColor = 'var(--neon-red)';
+    btn.style.color = 'var(--neon-red)';
+    btn.style.boxShadow = '0 0 20px rgba(255,34,68,0.3)';
+    scheduleAutoSim();
+  } else {
+    btn.textContent = 'AUTO SIM: OFF';
+    btn.style.borderColor = 'var(--neon-green)';
+    btn.style.color = 'var(--neon-green)';
+    btn.style.boxShadow = '';
+    clearTimeout(state.autoSimInterval);
+  }
+}
+
+const msgTypes = ['EMERGENCY ALERT', 'FIRE ALERT', 'HAZARD WARNING', 'STATUS CHECK'];
+function scheduleAutoSim() {
+  if (!autoSimOn) return;
+  const delay = Math.random() * 5000 + 3000;
+  state.autoSimInterval = setTimeout(() => {
+    currentMsgType = msgTypes[Math.floor(Math.random() * msgTypes.length)];
+    if (!state.isTransmitting) sendEmergency();
+    scheduleAutoSim();
+  }, delay);
+}
+
+// ============================================================
+// RSSI JITTER (ambient)
+// ============================================================
+setInterval(() => {
+  if (!state.isTransmitting) {
+    const rssiA = -Math.floor(Math.random() * 25 + 35);
+    const rssiB = -Math.floor(Math.random() * 20 + 30);
+    document.getElementById('senderRSSI').textContent = `${rssiA}dBm`;
+    document.getElementById('receiverRSSI').textContent = `${rssiB}dBm`;
+  }
+}, 3000);
+
+// ============================================================
+// INIT
+// ============================================================
+drawChart();
+
+// Initial log
+setTimeout(() => {
+  addLog('🟢', 'INIT', 'Node A (Sender) connected to mesh', new Date().toTimeString().slice(0,8), 'c-cyan', 'border-cyan bg-cyan');
+}, 300);
+setTimeout(() => {
+  addLog('🟢', 'INIT', 'Node B (Receiver) connected to mesh', new Date().toTimeString().slice(0,8), 'c-green', 'border-green bg-green');
+}, 800);
+setTimeout(() => {
+  addLog('⚙️', 'SYS', 'Dashboard monitoring active', new Date().toTimeString().slice(0,8), 'c-yellow', 'border-yellow bg-yellow');
+}, 1300);
+
+// Resize chart on window resize
+window.addEventListener('resize', drawChart);
+setTimeout(drawChart, 100);
+</script>
+</body>
+</html>
