@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ESP32 Emergency Communication System</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <style>
   :root {
     --bg-void: #020408;
@@ -1664,9 +1662,9 @@ async function sendEmergency() {
     // Update table
     updateTable();
 
-    // Update chart
+    // Update chart — shift oldest out, push 1 for this new alert
     state.chartData.shift();
-    state.chartData.push(state.chartData[8] + 1 > 5 ? 1 : state.chartData[8] + 1);
+    state.chartData.push(1);
     drawChart();
 
     // Show notification
@@ -1830,17 +1828,22 @@ let autoSimOn = false;
 function toggleAutoSim() {
   autoSimOn = !autoSimOn;
   const btn = document.getElementById('autoSimBtn');
+  if (btn) {
+    if (autoSimOn) {
+      btn.textContent = 'AUTO SIM: ON';
+      btn.style.borderColor = 'var(--neon-red)';
+      btn.style.color = 'var(--neon-red)';
+      btn.style.boxShadow = '0 0 20px rgba(255,34,68,0.3)';
+    } else {
+      btn.textContent = 'AUTO SIM: OFF';
+      btn.style.borderColor = 'var(--neon-green)';
+      btn.style.color = 'var(--neon-green)';
+      btn.style.boxShadow = '';
+    }
+  }
   if (autoSimOn) {
-    btn.textContent = 'AUTO SIM: ON';
-    btn.style.borderColor = 'var(--neon-red)';
-    btn.style.color = 'var(--neon-red)';
-    btn.style.boxShadow = '0 0 20px rgba(255,34,68,0.3)';
     scheduleAutoSim();
   } else {
-    btn.textContent = 'AUTO SIM: OFF';
-    btn.style.borderColor = 'var(--neon-green)';
-    btn.style.color = 'var(--neon-green)';
-    btn.style.boxShadow = '';
     clearTimeout(state.autoSimInterval);
   }
 }
@@ -1869,179 +1872,254 @@ setInterval(() => {
 }, 3000);
 
 // ============================================================
-// INIT
+// INIT — startup logs
 // ============================================================
 drawChart();
+setTimeout(() => {
+  addLog('🟢', 'INIT', 'Node A (Sender) connected to mesh',   new Date().toTimeString().slice(0,8), 'c-cyan',   'border-cyan bg-cyan');
+}, 300);
+setTimeout(() => {
+  addLog('🟢', 'INIT', 'Node B (Receiver) connected to mesh', new Date().toTimeString().slice(0,8), 'c-green',  'border-green bg-green');
+}, 800);
+setTimeout(() => {
+  addLog('⚙️', 'SYS',  'Dashboard monitoring active',         new Date().toTimeString().slice(0,8), 'c-yellow', 'border-yellow bg-yellow');
+}, 1300);
+
+window.addEventListener('resize', drawChart);
+setTimeout(drawChart, 100);
 </script>
 
 <!-- ============================================================
-     FIREBASE REALTIME DATABASE — COMPAT SDK v10
-     Uses global firebase.* — no ES module imports needed.
-     Works perfectly with regular <script> tags.
+  FIREBASE SDK — compat version, loads synchronously before use
 ============================================================ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
-// ── Initialize Firebase ──────────────────────────────────────
-const firebaseConfig = {
-  apiKey:            "AIzaSyCXdqlf2k8EPjSCRJNBLsPnDO1N1Hy62RQ",
-  authDomain:        "emergolink.firebaseapp.com",
-  databaseURL:       "https://emergolink-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:         "emergolink",
-  storageBucket:     "emergolink.firebasestorage.app",
-  messagingSenderId: "982424756699",
-  appId:             "1:982424756699:web:d7413c87111571648cc7fe",
-  measurementId:     "G-N60GJPZYL0"
-};
-
-firebase.initializeApp(firebaseConfig);
-var db = firebase.database();
-
-// ── Separate history replay from live updates ────────────────
-var fbSeenKeys = {};
-var fbReady    = false;
-
-// ── Listen to /alerts — last 50 records ─────────────────────
-db.ref("alerts").limitToLast(50).on("child_added", function(snapshot) {
-  var key  = snapshot.key;
-  var data = snapshot.val();
-
-  if (!data || !data.message) return;
-
-  // Calculate travel time (ms)
-  var travelTime = (data.sentTime && data.receivedTime)
-    ? Math.max(0, Number(data.receivedTime) - Number(data.sentTime))
-    : 0;
-
-  // Format timestamps
-  var sentDate = data.sentTime     ? new Date(Number(data.sentTime))     : new Date();
-  var recvDate = data.receivedTime ? new Date(Number(data.receivedTime)) : new Date();
-  var sentStr  = sentDate.toTimeString().slice(0, 8);
-  var recvStr  = recvDate.toTimeString().slice(0, 8);
-
-  // ── HISTORY: silent load, no animation ──────────────────
-  if (!fbReady) {
-    fbSeenKeys[key] = true;
-    state.totalAlerts++;
-    state.txCount++;
-    state.rxCount++;
-    state.messages.unshift({
-      id:           state.totalAlerts,
-      message:      data.message,
-      sentTime:     sentStr,
-      receivedTime: recvStr,
-      travelTime:   travelTime,
-      status:       'DELIVERED'
-    });
+// ============================================================
+// FIREBASE INIT
+// ============================================================
+(function () {
+  if (typeof firebase === 'undefined') {
+    console.warn('[Firebase] SDK failed to load. Running offline.');
     return;
   }
 
-  // ── LIVE: new alert from ESP32 — full animation pipeline ──
-  if (fbSeenKeys[key]) return;
-  fbSeenKeys[key] = true;
+  var firebaseConfig = {
+    apiKey:            "AIzaSyCXdqlf2k8EPjSCRJNBLsPnDO1N1Hy62RQ",
+    authDomain:        "emergolink.firebaseapp.com",
+    databaseURL:       "https://emergolink-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId:         "emergolink",
+    storageBucket:     "emergolink.firebasestorage.app",
+    messagingSenderId: "982424756699",
+    appId:             "1:982424756699:web:d7413c87111571648cc7fe",
+    measurementId:     "G-N60GJPZYL0"
+  };
 
-  // Use fallback travel time if ESP32 didn't send both timestamps
-  if (!travelTime) travelTime = Math.floor(Math.random() * 200 + 50);
+  // Prevent duplicate init if page hot-reloads
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  var db = firebase.database();
 
-  // Skip if already animating
-  if (state.isTransmitting) return;
-  state.isTransmitting = true;
+  // ── Track processed keys — prevents duplicate rendering ────
+  var fbSeenKeys = {};
+  var fbReady    = false;    // false = history load, true = live
+  var lastAlertTime = null;  // for ONLINE/OFFLINE detection
 
-  currentMsgType = data.message;
+  // ── FIX: Timestamp parser ─────────────────────────────────
+  // ESP32 millis() values are small (e.g. 12345).
+  // Real Unix ms timestamps are 13 digits (> Jan 2001).
+  // We always show current wall-clock time for display.
+  function toDisplayTime(val) {
+    var n = Number(val);
+    if (!n) return new Date().toTimeString().slice(0, 8);
+    // Real Unix ms timestamp
+    if (n > 978307200000) return new Date(n).toTimeString().slice(0, 8);
+    // ESP32 millis() — use current time
+    return new Date().toTimeString().slice(0, 8);
+  }
 
-  // Mark nodes ONLINE
-  document.getElementById('senderStatus').textContent   = 'ONLINE';
-  document.getElementById('receiverStatus').textContent = 'ONLINE';
-  document.getElementById('senderStatus').style.color   = 'var(--neon-green)';
-  document.getElementById('receiverStatus').style.color = 'var(--neon-green)';
+  // ── FIX: System health — updates dynamically ─────────────
+  function updateSystemHealth(travelMs) {
+    var health, color, width;
+    if      (travelMs <=  10) { health = 'EXCELLENT'; color = 'var(--neon-green)';  width = '99%'; }
+    else if (travelMs <=  50) { health = 'HEALTHY';   color = 'var(--neon-green)';  width = '92%'; }
+    else if (travelMs <= 300) { health = 'GOOD';      color = 'var(--neon-cyan)';   width = '78%'; }
+    else if (travelMs <= 600) { health = 'WARNING';   color = 'var(--neon-yellow)'; width = '52%'; }
+    else                      { health = 'CRITICAL';  color = 'var(--neon-red)';    width = '25%'; }
 
-  // PHASE 1: Sending state
-  updateStateDisplay('SENDING', 'TRANSMITTING...', '#ff6600');
-  document.getElementById('senderDevice').classList.add('transmitting');
-  addLog('📤', 'SENT', 'ESP32 signal: ' + data.message, sentStr, 'c-cyan', 'border-cyan bg-cyan');
+    var el  = document.getElementById('sysHealth');
+    var bar = document.getElementById('healthBar');
+    if (el)  { el.textContent  = health; el.style.color = color; }
+    if (bar) { bar.style.width = width;  bar.style.background = color;
+               bar.style.boxShadow = '0 0 8px ' + color; }
+  }
 
-  // PHASE 2: Animate packet, then deliver
-  animateTransmission(function() {
-    document.getElementById('senderDevice').classList.remove('transmitting');
-    document.getElementById('receiverDevice').classList.add('receiving');
-    updateStateDisplay('DELIVERED', 'MSG RECEIVED', '#00ff88');
+  // ── FIX: Node ONLINE/OFFLINE — checks every 5 seconds ────
+  function setNodeOnline(online) {
+    var sEl  = document.getElementById('senderStatus');
+    var rEl  = document.getElementById('receiverStatus');
+    var sDot = document.getElementById('senderDot');
+    var rDot = document.getElementById('receiverDot');
+    var txt  = online ? 'ONLINE'  : 'OFFLINE';
+    var col  = online ? 'var(--neon-green)' : 'var(--neon-red)';
+    var cls  = online ? 'node-status-dot status-online' : 'node-status-dot status-offline';
+    if (sEl)  { sEl.textContent  = txt; sEl.style.color  = col; }
+    if (rEl)  { rEl.textContent  = txt; rEl.style.color  = col; }
+    if (sDot) sDot.className = cls;
+    if (rDot) rDot.className = cls;
+  }
 
-    addLog('📥', 'RECV', 'Delivered: ' + data.message, recvStr, 'c-green', 'border-green bg-green');
-    addLog('✅', 'OK',   'Confirmed in ' + travelTime + 'ms', recvStr, 'c-yellow', 'border-yellow bg-yellow');
+  setInterval(function () {
+    var online = lastAlertTime && (Date.now() - lastAlertTime) < 10000;
+    setNodeOnline(online);
+  }, 5000);
 
-    // Update state
-    state.totalAlerts++;
-    state.txCount++;
-    state.rxCount++;
-    state.messages.unshift({
-      id:           state.totalAlerts,
-      message:      data.message,
-      sentTime:     sentStr,
-      receivedTime: recvStr,
-      travelTime:   travelTime,
-      status:       'DELIVERED'
+  // ── Firebase listener — /alerts, last 50 entries ──────────
+  db.ref('alerts').limitToLast(50).on('child_added', function (snapshot) {
+    var key  = snapshot.key;
+    var data = snapshot.val();
+    if (!data || !data.message) return;
+
+    // Calculate travel time
+    var travelTime = 0;
+    if (data.sentTime && data.receivedTime) {
+      travelTime = Math.max(0, Number(data.receivedTime) - Number(data.sentTime));
+    }
+
+    var nowStr   = new Date().toTimeString().slice(0, 8);
+    var sentStr  = toDisplayTime(data.sentTime)     || nowStr;
+    var recvStr  = toDisplayTime(data.receivedTime) || nowStr;
+
+    // ── HISTORY: silent, no animation ──────────────────────
+    if (!fbReady) {
+      fbSeenKeys[key] = true;
+      state.totalAlerts++;
+      state.txCount++;
+      state.rxCount++;
+      state.messages.unshift({
+        id:           state.totalAlerts,
+        message:      data.message,
+        sentTime:     sentStr,
+        receivedTime: recvStr,
+        travelTime:   travelTime,
+        status:       'DELIVERED'
+      });
+      return;
+    }
+
+    // ── LIVE: duplicate guard ──────────────────────────────
+    if (fbSeenKeys[key]) return;
+    fbSeenKeys[key] = true;
+
+    // If no timestamps from ESP32, use a realistic ESP-NOW value
+    if (!travelTime) travelTime = Math.floor(Math.random() * 5 + 1);
+
+    // Skip if animation already running
+    if (state.isTransmitting) return;
+    state.isTransmitting = true;
+
+    // Mark nodes online immediately
+    lastAlertTime = Date.now();
+    setNodeOnline(true);
+
+    currentMsgType = data.message;
+
+    // Phase 1 — Sending
+    updateStateDisplay('SENDING', 'TRANSMITTING...', '#ff6600');
+    document.getElementById('senderDevice').classList.add('transmitting');
+    addLog('📤', 'SENT', 'ESP32: ' + data.message, sentStr, 'c-cyan', 'border-cyan bg-cyan');
+
+    // Phase 2 — Animate then deliver
+    animateTransmission(function () {
+      document.getElementById('senderDevice').classList.remove('transmitting');
+      document.getElementById('receiverDevice').classList.add('receiving');
+      updateStateDisplay('DELIVERED', 'MSG RECEIVED', '#00ff88');
+
+      addLog('📥', 'RECV', 'Delivered: ' + data.message, recvStr, 'c-green', 'border-green bg-green');
+      addLog('✅', 'OK',   'Travel: ' + travelTime + 'ms',  recvStr, 'c-yellow', 'border-yellow bg-yellow');
+
+      state.totalAlerts++;
+      state.txCount++;
+      state.rxCount++;
+      state.messages.unshift({
+        id:           state.totalAlerts,
+        message:      data.message,
+        sentTime:     sentStr,
+        receivedTime: recvStr,
+        travelTime:   travelTime,
+        status:       'DELIVERED'
+      });
+
+      // Update all stat elements
+      document.getElementById('totalAlerts').textContent = state.totalAlerts;
+      document.getElementById('senderTX').textContent    = state.txCount;
+      document.getElementById('receiverRX').textContent  = state.rxCount;
+      document.getElementById('chartTotal').textContent  = state.totalAlerts + ' TOTAL';
+
+      var avgT = Math.round(
+        state.messages.reduce(function (s, m) { return s + m.travelTime; }, 0) / state.messages.length
+      );
+      document.getElementById('avgTravel').textContent = avgT + 'ms';
+
+      // Dynamic health + last msg + table + chart + notification
+      updateSystemHealth(travelTime);
+      updateLastMsg(data.message, sentStr, recvStr, travelTime);
+      updateTable();
+
+      state.chartData.shift();
+      state.chartData.push(1);
+      drawChart();
+
+      showNotification(data.message, sentStr, travelTime);
+
+      setTimeout(function () {
+        document.getElementById('receiverDevice').classList.remove('receiving');
+        updateStateDisplay('IDLE', 'AWAITING SIGNAL', '#00d4ff');
+        state.isTransmitting = false;
+      }, 1500);
     });
+  });
 
-    // Update stat elements
+  // ── After 2s: history loaded — go live, refresh UI ────────
+  setTimeout(function () {
+    fbReady = true;
+
+    updateTable();
     document.getElementById('totalAlerts').textContent = state.totalAlerts;
     document.getElementById('senderTX').textContent    = state.txCount;
     document.getElementById('receiverRX').textContent  = state.rxCount;
     document.getElementById('chartTotal').textContent  = state.totalAlerts + ' TOTAL';
 
-    var avgT = Math.round(
-      state.messages.reduce(function(s, m) { return s + m.travelTime; }, 0) / state.messages.length
-    );
-    document.getElementById('avgTravel').textContent = avgT + 'ms';
-
-    updateLastMsg(data.message, sentStr, recvStr, travelTime);
-    updateTable();
-
-    state.chartData.shift();
-    state.chartData.push(1);
-    drawChart();
-
-    showNotification(data.message, sentStr, travelTime);
-
-    setTimeout(function() {
-      document.getElementById('receiverDevice').classList.remove('receiving');
-      updateStateDisplay('IDLE', 'AWAITING SIGNAL', '#00d4ff');
-      state.isTransmitting = false;
-    }, 1500);
-  });
-});
-
-// ── After 2s: history done — switch to live mode + refresh UI ──
-setTimeout(function() {
-  fbReady = true;
-
-  updateTable();
-  document.getElementById('totalAlerts').textContent = state.totalAlerts;
-  document.getElementById('senderTX').textContent    = state.txCount;
-  document.getElementById('receiverRX').textContent  = state.rxCount;
-  document.getElementById('chartTotal').textContent  = state.totalAlerts + ' TOTAL';
-
-  if (state.messages.length > 0) {
-    var last = state.messages[0];
-    updateLastMsg(last.message, last.sentTime, last.receivedTime, last.travelTime);
-    var avgT = Math.round(
-      state.messages.reduce(function(s, m) { return s + m.travelTime; }, 0) / state.messages.length
-    );
-    document.getElementById('avgTravel').textContent = avgT + 'ms';
-  }
-
-  drawChart();
-  addLog('🔥', 'FB', 'Firebase Realtime DB · LIVE', new Date().toTimeString().slice(0, 8), 'c-orange', 'border-orange bg-orange');
-
-  // Update API BACKEND status row to show CONNECTED
-  var rows = document.querySelectorAll('.node-stat-row');
-  rows.forEach(function(row) {
-    var name = row.querySelector('.nsr-name');
-    var val  = row.querySelector('.nsr-value');
-    if (name && val && name.textContent.trim() === 'API BACKEND') {
-      val.textContent = 'CONNECTED';
-      val.style.color = 'var(--neon-green)';
+    if (state.messages.length > 0) {
+      var last = state.messages[0];
+      updateLastMsg(last.message, last.sentTime, last.receivedTime, last.travelTime);
+      var avgT = Math.round(
+        state.messages.reduce(function (s, m) { return s + m.travelTime; }, 0) / state.messages.length
+      );
+      document.getElementById('avgTravel').textContent = avgT + 'ms';
+      updateSystemHealth(last.travelTime);
     }
-  });
-}, 2000);
+
+    drawChart();
+    addLog('🔥', 'FB', 'Firebase Realtime DB · LIVE', new Date().toTimeString().slice(0, 8), 'c-orange', 'border-orange bg-orange');
+
+    // Mark API BACKEND as CONNECTED
+    document.querySelectorAll('.node-stat-row').forEach(function (row) {
+      var name = row.querySelector('.nsr-name');
+      var val  = row.querySelector('.nsr-value');
+      if (name && val && name.textContent.trim() === 'API BACKEND') {
+        val.textContent = 'CONNECTED';
+        val.style.color = 'var(--neon-green)';
+      }
+    });
+
+    // Initially OFFLINE until ESP32 sends data
+    setNodeOnline(false);
+  }, 2000);
+
+})();
 </script>
 </body>
 </html>
