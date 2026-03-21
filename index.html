@@ -1082,7 +1082,7 @@
   <div class="header-right">
     <div class="demo-badge">DEMO MODE</div>
     <div class="sys-time" id="sysTime">--:--:--</div>
-    <button class="btn-demo" id="autoSimBtn" onclick="toggleAutoSim()">AUTO SIM: OFF</button>
+    <button class="btn-demo" id="autoSimBtn">AUTO SIM: OFF</button>
   </div>
 </header>
 
@@ -1231,7 +1231,7 @@
 
       <!-- EMERGENCY BUTTON SECTION -->
       <div class="emergency-section">
-        <button class="btn-emergency" id="emergencyBtn" onclick="sendEmergency()">
+        <button class="btn-emergency" id="emergencyBtn">
           <span class="btn-emergency-icon">⚠️</span>
           <span class="btn-emergency-label">SEND<br>ALERT</span>
         </button>
@@ -1239,10 +1239,10 @@
           <h3>EMERGENCY SIGNAL CONTROL</h3>
           <p>Select alert type and press to transmit an emergency signal from Node A to Node B via ESP-NOW protocol.</p>
           <div class="signal-type-btns">
-            <button class="sig-btn sig-btn-red active" onclick="setMsgType('EMERGENCY ALERT', this)">🔴 EMERGENCY</button>
-            <button class="sig-btn sig-btn-orange" onclick="setMsgType('FIRE ALERT', this)">🔥 FIRE</button>
-            <button class="sig-btn sig-btn-yellow" onclick="setMsgType('HAZARD WARNING', this)">⚡ HAZARD</button>
-            <button class="sig-btn sig-btn-cyan" onclick="setMsgType('STATUS CHECK', this)">📡 PING</button>
+            <button class="sig-btn sig-btn-red active"    data-msg="EMERGENCY ALERT">🔴 EMERGENCY</button>
+            <button class="sig-btn sig-btn-orange"         data-msg="FIRE ALERT">🔥 FIRE</button>
+            <button class="sig-btn sig-btn-yellow"         data-msg="HAZARD WARNING">⚡ HAZARD</button>
+            <button class="sig-btn sig-btn-cyan"           data-msg="STATUS CHECK">📡 PING</button>
           </div>
         </div>
       </div>
@@ -1268,7 +1268,7 @@
       <div class="table-panel">
         <div class="panel-header">
           <div class="panel-title">MESSAGE RECORDS</div>
-          <button onclick="clearMessages()" style="font-family:'Share Tech Mono',monospace;font-size:9px;background:transparent;border:1px solid rgba(255,34,68,0.4);color:rgba(255,34,68,0.6);padding:3px 10px;cursor:pointer;border-radius:2px;letter-spacing:1px;">CLEAR</button>
+          <button id="clearBtn" style="font-family:'Share Tech Mono',monospace;font-size:9px;background:transparent;border:1px solid rgba(255,34,68,0.4);color:rgba(255,34,68,0.6);padding:3px 10px;cursor:pointer;border-radius:2px;letter-spacing:1px;">CLEAR</button>
         </div>
         <div class="table-scroll-wrap">
           <table class="msg-table">
@@ -1382,7 +1382,7 @@
   <span>NODE MESH · ESP-NOW PROTOCOL · 2.4 GHz</span>
 </footer>
 
-<script>
+<script type="module">
 // ============================================================
 // STATE
 // ============================================================
@@ -1399,6 +1399,19 @@ const state = {
   txCount: 0,
   rxCount: 0,
 };
+
+// ============================================================
+// EVENT LISTENERS (replaces onclick attributes — required for type="module")
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('autoSimBtn').addEventListener('click', toggleAutoSim);
+  document.getElementById('emergencyBtn').addEventListener('click', sendEmergency);
+  document.getElementById('clearBtn').addEventListener('click', clearMessages);
+
+  document.querySelectorAll('.sig-btn[data-msg]').forEach(btn => {
+    btn.addEventListener('click', () => setMsgType(btn.dataset.msg, btn));
+  });
+});
 
 // ============================================================
 // CLOCK & UPTIME
@@ -1886,6 +1899,163 @@ setTimeout(() => {
 // Resize chart on window resize
 window.addEventListener('resize', drawChart);
 setTimeout(drawChart, 100);
+
+// ============================================================
+// FIREBASE REALTIME DATABASE INTEGRATION
+// ============================================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getDatabase, ref, onChildAdded, query, orderByChild, limitToLast }
+  from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyCXdqlf2k8EPjSCRJNBLsPnDO1N1Hy62RQ",
+  authDomain:        "emergolink.firebaseapp.com",
+  databaseURL:       "https://emergolink-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "emergolink",
+  storageBucket:     "emergolink.firebasestorage.app",
+  messagingSenderId: "982424756699",
+  appId:             "1:982424756699:web:d7413c87111571648cc7fe",
+  measurementId:     "G-N60GJPZYL0"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db          = getDatabase(firebaseApp);
+
+// ── Track seen keys so onChildAdded history replay doesn't re-animate ──
+const seenKeys    = new Set();
+let   firebaseReady = false;
+
+// Listen to /alerts — onChildAdded fires for existing records first,
+// then in real-time for every new one written by ESP32 Node-B.
+const alertsRef = query(
+  ref(db, 'alerts'),
+  orderByChild('receivedTime'),
+  limitToLast(50)          // load last 50 on connect, then stream new ones
+);
+
+onChildAdded(alertsRef, (snapshot) => {
+  const key  = snapshot.key;
+  const data = snapshot.val();
+
+  if (!data || !data.message) return;
+
+  // ── On initial load: populate table/log silently without animations ──
+  if (!firebaseReady) {
+    seenKeys.add(key);
+
+    const travelTime = Math.max(0, Number(data.receivedTime || 0) - Number(data.sentTime || 0));
+
+    // Format times
+    const sentDate  = data.sentTime     ? new Date(data.sentTime)     : new Date();
+    const recvDate  = data.receivedTime ? new Date(data.receivedTime) : new Date();
+    const sentStr   = sentDate.toTimeString().slice(0, 8);
+    const recvStr   = recvDate.toTimeString().slice(0, 8);
+
+    state.totalAlerts++;
+    state.txCount++;
+    state.rxCount++;
+    state.messages.unshift({
+      id:           state.totalAlerts,
+      message:      data.message,
+      sentTime:     sentStr,
+      receivedTime: recvStr,
+      travelTime,
+      status:       'DELIVERED'
+    });
+
+    return; // skip animation for history
+  }
+
+  // ── Real-time: new record just written by ESP32 ──
+  if (seenKeys.has(key)) return;
+  seenKeys.add(key);
+
+  const travelTime = Math.max(0, Number(data.receivedTime || 0) - Number(data.sentTime || 0));
+  const sentDate   = data.sentTime     ? new Date(data.sentTime)     : new Date();
+  const recvDate   = data.receivedTime ? new Date(data.receivedTime) : new Date();
+  const sentStr    = sentDate.toTimeString().slice(0, 8);
+  const recvStr    = recvDate.toTimeString().slice(0, 8);
+
+  // Set current message type so animation label matches
+  currentMsgType = data.message;
+
+  // Trigger the full existing send animation pipeline
+  if (!state.isTransmitting) {
+    state.isTransmitting = true;
+
+    updateStateDisplay('SENDING', 'TRANSMITTING...', '#ff6600');
+    document.getElementById('senderDevice').classList.add('transmitting');
+    addLog('📤', 'SENT', `Signal received from Firebase: ${data.message}`, sentStr, 'c-cyan', 'border-cyan bg-cyan');
+
+    animateTransmission(() => {
+      document.getElementById('senderDevice').classList.remove('transmitting');
+      document.getElementById('receiverDevice').classList.add('receiving');
+      updateStateDisplay('DELIVERED', 'MSG RECEIVED', '#00ff88');
+
+      addLog('📥', 'RECV', `Signal delivered: ${data.message}`, recvStr, 'c-green', 'border-green bg-green');
+      addLog('✅', 'OK', `Delivery confirmed in ${travelTime}ms`, recvStr, 'c-yellow', 'border-yellow bg-yellow');
+
+      state.totalAlerts++;
+      state.txCount++;
+      state.rxCount++;
+      state.messages.unshift({
+        id:           state.totalAlerts,
+        message:      data.message,
+        sentTime:     sentStr,
+        receivedTime: recvStr,
+        travelTime,
+        status:       'DELIVERED'
+      });
+
+      document.getElementById('totalAlerts').textContent = state.totalAlerts;
+      document.getElementById('senderTX').textContent    = state.txCount;
+      document.getElementById('receiverRX').textContent  = state.rxCount;
+
+      const avgT = Math.round(
+        state.messages.reduce((s, m) => s + m.travelTime, 0) / state.messages.length
+      );
+      document.getElementById('avgTravel').textContent = `${avgT}ms`;
+
+      updateLastMsg(data.message, sentStr, recvStr, travelTime);
+      updateTable();
+
+      state.chartData.shift();
+      state.chartData.push(1);
+      drawChart();
+
+      showNotification(data.message, sentStr, travelTime);
+
+      setTimeout(() => {
+        document.getElementById('receiverDevice').classList.remove('receiving');
+        updateStateDisplay('IDLE', 'AWAITING SIGNAL', '#00d4ff');
+        state.isTransmitting = false;
+      }, 1500);
+    });
+  }
+});
+
+// After a short delay, mark history as loaded so next onChildAdded calls are live
+setTimeout(() => {
+  firebaseReady = true;
+
+  // Populate UI with history loaded silently above
+  updateTable();
+  document.getElementById('totalAlerts').textContent = state.totalAlerts;
+  document.getElementById('senderTX').textContent    = state.txCount;
+  document.getElementById('receiverRX').textContent  = state.rxCount;
+
+  if (state.messages.length > 0) {
+    const last = state.messages[0];
+    updateLastMsg(last.message, last.sentTime, last.receivedTime, last.travelTime);
+    const avgT = Math.round(
+      state.messages.reduce((s, m) => s + m.travelTime, 0) / state.messages.length
+    );
+    document.getElementById('avgTravel').textContent = `${avgT}ms`;
+  }
+
+  drawChart();
+  addLog('🔥', 'FB', 'Firebase Realtime Database connected', new Date().toTimeString().slice(0,8), 'c-orange', 'border-orange bg-orange');
+}, 2000);
 </script>
 </body>
 </html>
