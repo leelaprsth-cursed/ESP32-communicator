@@ -1977,7 +1977,7 @@ setTimeout(drawChart, 100);
   }, 5000);
 
   // ── Firebase listener — /alerts, last 50 entries ──────────
-  db.ref('alerts').limitToLast(1).on('child_added', function (snapshot) {
+  db.ref('alerts').limitToLast(20).on('child_added', function (snapshot) {
     var key  = snapshot.key;
     var data = snapshot.val();
     if (!data || !data.message) return;
@@ -2117,7 +2117,7 @@ setTimeout(drawChart, 100);
 
     // Initially OFFLINE until ESP32 sends data
     setNodeOnline(false);
-  }, 500);
+  }, 1000);
 
 })();
 </script>
